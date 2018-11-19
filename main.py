@@ -34,6 +34,32 @@ distanceMatrix = np.zeros(shape=(nodeNum, nodeNum))
 distanceMatrix = np.zeros(shape=(nodeNum, nodeNum))
 
 
+# 当前车型重量矩阵
+curCarWegithMatrix = np.zeros(shape=(1, garbageNum))
+# 当前车型号
+curCarIndex = 0
+# 蚂蚁行走路径
+route = []
+# 计算备选集
+def getNextPosition():
+	return null;
+
+# 计算重量备选集
+def getAllowedWeightList(leftList, clientWeightMatrix, curCarWegithMatrix, curCarIndex):
+	resList = []
+	for i in range(len(leftList)):
+		can = True;
+		for j in range(garbageNum):
+			if curCarWegithMatrix[0][j] + clientWeightMatrix[i][j] > collectorMatrix[curCarIndex][j]:
+				can = False;
+				break;
+		if can:
+			resList.append(i)
+	return resList;
+
+# 计算电量备选集
+
+
 
 def init():# 变量初始化
     
