@@ -1,38 +1,40 @@
 import numpy as np
 import random
 
-homeNum = 1 # 车场个数
-carNum = 3 # 车型个数
-clientNum = 5 # 客户个数
-garbageNum = 4 #垃圾种类数
-chargerNum = 3 #充电桩个数
-#每个客户的垃圾重量规格矩阵
+homeNum = 1  # 车场个数
+carNum = 3  # 车型个数
+clientNum = 5  # 客户个数
+garbageNum = 4  # 垃圾种类数
+chargerNum = 3  # 充电桩个数
+# 每个客户的垃圾重量规格矩阵
 clientWeightMatrix = np.zeros(shape=(clientNum, garbageNum))
-#每个客户的时间窗
-clientWindow = np.zeros(shape=(clientNum, 2))
-#每个客户需要的服务时间
+# 每个客户的时间窗
+clientTimeWindow = np.zeros(shape=(clientNum, 2))
+# 每个客户需要的服务时间
 clientServeTime = np.zeros(shape=(clientNum, 1))
-#每种车型的垃圾容量矩阵
+# 每种车型的垃圾容量矩阵
 collectorMatrix = np.zeros(shape=(carNum, garbageNum))
-#每种车型工作时长
+# 每种车型工作时长
 carServeTime = np.zeros(shape=(carNum, 1))
-#每种车型电池规格
+# 每种车型电池规格
 carPowerCapacity = np.zeros(shape=(carNum, 1))
-#车子运行速度
+# 车子运行速度
 moveSpeed = 1
-#充电速度
+# 充电速度
 chargeSpeed = 1
 
-antNum = 10 # 蚂蚁个数
-times = 100 # 迭代次数
+antNum = 10  # 蚂蚁个数
+times = 100  # 迭代次数
 
-#节点个数，车场+客户+充电桩
-nodeNum = homeNum + clientNum + chargerNum 
-#距离矩阵（边矩阵 nodeNum * nodeNum)，第0个代表车场，第1到homeNum个为客户，第homeNum+1到nodeNum-1为充电桩
+# 节点个数，车场+客户+充电桩
+nodeNum = homeNum + clientNum + chargerNum
+# 距离矩阵（边矩阵 nodeNum * nodeNum)，第0个代表车场，第1到homeNum个为客户，第homeNum+1到nodeNum-1为充电桩
 distanceMatrix = np.zeros(shape=(nodeNum, nodeNum))
-#信息素浓度矩阵，同上
-distanceMatrix = np.zeros(shape=(nodeNum, nodeNum))
+# 信息素浓度矩阵，同上
+pheromoneMatrix = np.zeros(shape=(nodeNum, nodeNum))
 
+# 每个客户点最近距离的充电桩
+leastCloseChargerList = np.zeros(shape=(clientNum, 1))
 
 # 当前车型重量矩阵
 curCarWegithMatrix = np.zeros(shape=(1, garbageNum))
@@ -40,104 +42,148 @@ curCarWegithMatrix = np.zeros(shape=(1, garbageNum))
 curCarIndex = 0
 # 蚂蚁行走路径
 route = []
-# 计算备选集
-def getNextPosition():
-	return null;
 
-# 计算重量备选集
+# 移动速度
+move_speed = 1;
+
+
+# 计算重量备选集，表示当前能够去服务的客户点，只考虑重量约束
 def getAllowedWeightList(leftList, clientWeightMatrix, curCarWegithMatrix, curCarIndex):
-	resList = []
-	for i in range(len(leftList)):
-		can = True;
-		for j in range(garbageNum):
-			if curCarWegithMatrix[0][j] + clientWeightMatrix[i][j] > collectorMatrix[curCarIndex][j]:
-				can = False;
-				break;
-		if can:
-			resList.append(i)
-	return resList;
+    resList = []
+    for i in range(len(leftList)):
+        clientId = leftList[i];
+        realClientId = clientId - homeNum;
+        can = True;
+        for j in range(garbageNum):
+            if curCarWegithMatrix[0][j] + clientWeightMatrix[realClientId][j] > collectorMatrix[curCarIndex][j]:
+                can = False;
+                break;
+        if can:
+            resList.append(clientId)
+    return resList;
 
-# 计算电量备选集
+
+# 计算时间窗约束备选集1, 从当前点直接去下一个客户点
+def getAllowedTimeList1(leftList, curTime, curPosition, clientTimeWindow, distanceMatrix, v):
+    resList = []
+    for i in range(len(leftList)):
+        clientId = leftList[i]
+        realClientId = clientId - homeNum;
+        expandTime = distanceMatrix[curPosition][clientId] / v;
+        if curTime + expandTime <= clientTimeWindow[realClientId][1]:
+            resList.append(clientId)
+    return resList;
+
+
+# 计算时间窗约束备选集2，从当前点去最近充电桩，然后去下一个客户点
+def getAllowedTimeList2(leftList, curtimme, curPower, curPosition, curCarIndex, clientTimeWindow, distanceMatrix, v,
+                        chargeV):
+    resList = []
+    for i in range(len(leftList)):
+        clientId = leftList[i]
+        realClientId = clientId - homeNum
+        leastCloseChargerId = leastCloseChargerList[realClientId];
+        distance = distanceMatrix[curPosition][leastCloseChargerId] + distanceMatrix[leastCloseChargerId][clientId];
+        chargePower = carPowerCapacity[curCarIndex] * 0.8 + calPower(
+            distanceMatrix[curPosition][leastCloseChargerId]) - curPower;
+        chargeTime = chargePower / chargeV;
+        expandTime = distance / v + chargeTime;
+        if expandTime + curtimme <= clientTimeWindow[realClientId][1]:
+            resList.append(clientId)
+    return resList;
+
+
+# 计算电量备选集1, 从当前点直接去客户点
+def getAllowedPowerList1(leftList, curPosition, curPower, distanceMatrix):
+    resList = []
+    for i in range(len(leftList)):
+        clientId = leftList[i];
+        distance = distanceMatrix[curPosition][clientId] + distanceMatrix[0][clientId];
+        if curPower >= calPower(distance):
+            resList.append(clientId);
+    return resList;
+
+
+# 计算电量备选集2，从当前点（不为车场和充电桩），先去最近的充电桩，然后再去客户点
+def getAllowedPowerList2(leftList, curPosition, curPower, distanceMatrix):
+    resList = []
+    for i in range(len(leftList)):
+        clientId = leftList[i];
+        realClientId = clientId - homeNum;
+        # 获取最近的充电桩
+        leastCloseChargerId = leastCloseChargerList[realClientId];
+        distance = distanceMatrix[curPosition][leastCloseChargerId];
+        if curPower >= calPower(distance):
+            resList.append(distance)
+    return resList;
+
+
+# 计算耗电量
+def calPower(x):
+    a = 1;
+    b = 1;
+    return a * x + b;
 
 
 
-def init():# 变量初始化
-    
+# 计算Transition rule
+alpha = 1;
+beta = 1;
+gamma = 1;
 
-def random():
-	return 1
+# 计算转移概率，并且根据轮盘赌返回一个客户点
+def getClientIdByTransitionRule(resList, curPosition):
+    xi_list = [];
+    for clientId in resList:
+        # 节约数
+        mu = distanceMatrix[curPosition][0] + distanceMatrix[0][clientId] - distanceMatrix[curPosition][clientId];
+        xi = pheromoneMatrix[curPosition][clientId] ** alpha + \
+             distanceMatrix[curPosition][clientId] ** beta + \
+             mu ** gamma
+        last_xi = 0;
+        if len(xi_list) > 0:
+            last_xi = xi_list[-1];
+        xi_list.append(last_xi + xi);
+    start = 0;
+    end = xi_list[-1];
+    rand_xi = random.uniform(start, end);
 
-def roulette(allowedList):
-	return 1
+    for i in range(len(xi_list)-1):
+        if xi_list[i] <= rand_xi and rand_xi < xi_list:
+            return resList[i];
+    return resList[-1];
 
-def allowed():
-	return allowedList
 
+
+# 初始化
 def initial():
-	# 剩余车型
-	leftCarList = [i for i in range(0, carNum)]
-	# 随机从剩余车型选择一种车型，并从列表删除该车型
-	carIndx = getRandCar(leftCarList)
-	# 当前位置，初始在车场
-	position = 0
-	# 经过的路程
-	s = 10
-	# 已服务时间
-	aliveTime = 0
-	# 电量
-	power = 100
-	# 已载的重量
-	weight = 0
-	# 已服务过的客户列表
-	servedList = []
-	# 剩下未服务的客户列表
-	leftList = [i for i range(1, clientNum)]
-	#delta信息素浓度矩阵，本次迭代信息素浓度增量
-	deltaEdgeMatrix = np.zero(shap=(nodeNum, 2))
-	serve(carIndex, position, s, aliveTime, power, weight, servedList, leftList)
-
-def getRandCar(leftCarList):
-	rand = random.randint(0, len(leftCarList)-1)
-	randCar = leftCarList[rand]
-	leftCarList.remove(randCar)
-	return randCar
+    print("initializing");
+    carNumMatrix = np.zeros(shape=(carNum, 1));
+    print(carNumMatrix);
 
 
-def serve(carIndex, position, s, aliveTime, power, weight, servedList, leftList):
-	if len(leftList) == 0:
-		print("收集完毕")
-		return
-	if position == 0:#0代表当前在车场，选择去另一个客户点
-		nextClientPosition = getNextClient(carIndex, position, s, aliveTime, power, weight, leftList)
-	elif position > clientNum: #表示当前位置在充电桩
-		nextClientPosition = getNextClient(carIndex, position, s, aliveTime, power, weight, leftList)
-	else:
-		# 当前在客户点，可能去车场，可能去充电桩，可能去客户点
-		nextPostion = getNextPostion
+def process_when_is_depot(leftList, carFistVisited, curCarWeightMatrix, curCarIndex, curTime):
+    curPosition = 0; # 代表当前在车场
+    if carFistVisited == True:
+        # 表示当前车辆第一次访问车场
+        nextClientId = getClientIdByTransitionRule(leftList, curPosition);
+        return nextClientId;
+    else:
+        allowed_list = getAllowedTimeList1(leftList, curTime, curPosition, clientTimeWindow, distanceMatrix, move_speed)
+        if len(allowed_list) == 0:
+            ## 方案不可行
+            return -1;
+        else:
+            nextClientId = getClientIdByTransitionRule(allowed_list, curPosition);
+            return nextClientId;
 
-# 从一个客户点去下一个位置：可能去车场，可能去充电桩，可能去客户点
-def getNextPostion(carIndex, position, s, aliveTime, power, weight, leftList):
-	rand = random.randint(len(leftList)-1)
-	return leftList[rand]
 
-# 从剩下未服务的客户节点返回一个节点
-def getNextClient(carIndex, position, s, aliveTime, power, weight, leftList):
-	rand = random.randint(len(leftList)-1)
-	return leftList[rand]
-
-def iterate:
-	k = 0
-	s = 10
-	aliveTime = 0
-	power = 80
-	weight = 90
-	allowedList = allowed()
-	next = roulette(allowedList)
-	aliveTime += distance(k, next) / v
-	if next == 0:#回到车场
-		power = power >= 20? 100: power+100
-
-	part_update_pheromone(k, next)
+def process_when_is_customer(leftList, curCarIndex, curCarWeightMatrix):
+    weight_allowed_list = getAllowedWeightList(leftList, clientWeightMatrix, curCarWeightMatrix, curCarIndex);
+    if len(weight_allowed_list) == 0:
+        # 只能返回车场
+        return 0;
+    else:
 
 
 
@@ -147,5 +193,4 @@ def iterate:
 
 
 if __name__ == "__main__":
-    print("this is main function")
-    init()
+    initial();
