@@ -11,7 +11,7 @@ clientWeightMatrix = np.zeros(shape=(clientNum, garbageNum))
 # 每个客户的时间窗
 clientTimeWindow = np.zeros(shape=(clientNum, 2))
 # 每个客户需要的服务时间
-clientServeTime = np.zeros(shape=(clientNum, 1))
+clientServeTime = np.zeros(shape=(clientNum, 2))
 # 每种车型的垃圾容量矩阵
 collectorMatrix = np.zeros(shape=(carNum, garbageNum))
 # 每种车型工作时长
@@ -46,6 +46,8 @@ route = []
 # 移动速度
 move_speed = 1;
 
+# 充电速度
+charge_speed = 1;
 
 # 计算重量备选集，表示当前能够去服务的客户点，只考虑重量约束
 def getAllowedWeightList(leftList, clientWeightMatrix, curCarWegithMatrix, curCarIndex):
@@ -178,12 +180,28 @@ def process_when_is_depot(leftList, carFistVisited, curCarWeightMatrix, curCarIn
             return nextClientId;
 
 
-def process_when_is_customer(leftList, curCarIndex, curCarWeightMatrix):
+def process_when_is_customer(leftList, curCarIndex, curCarWeightMatrix, curTime, curPosition, curPower):
     weight_allowed_list = getAllowedWeightList(leftList, clientWeightMatrix, curCarWeightMatrix, curCarIndex);
     if len(weight_allowed_list) == 0:
         # 只能返回车场
         return 0;
     else:
+        # 时间窗约束, 直接从当前客户点到下一个客户点
+        time_allowed_list1 = getAllowedTimeList1(weight_allowed_list, curTime, curPosition, clientTimeWindow, distanceMatrix, move_speed);
+        if len(time_allowed_list1) > 0:
+            nextCientId = getClientIdByTransitionRule(time_allowed_list1, curPosition);
+            return nextCientId;
+        else:
+            time_allowed_list2 = getAllowedTimeList2(weight_allowed_list, curTime, curPower, curPosition, curCarIndex
+                                                     ,clientTimeWindow, distanceMatrix, move_speed, charge_speed);
+            if len(time_allowed_list2) > 0:
+                nextClientId = getClientIdByTransitionRule(time_allowed_list2, curPosition);
+                return nextClientId;
+            else:
+                # 返回车场
+                return 0;
+
+
 
 
 
